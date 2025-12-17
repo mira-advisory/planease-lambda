@@ -1,0 +1,38 @@
+{
+    "FunctionName": "project_summaries",
+    "FunctionArn": "arn:aws:lambda:ap-southeast-2:050295694231:function:project_summaries",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::050295694231:role/service-role/project_summaries-role-b8aly9wb",
+    "Handler": "index.handler",
+    "CodeSize": 1367,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2025-12-14T02:59:51.000+0000",
+    "CodeSha256": "5FmvnxbF6T9HxFs4HqCJC72MLLZH+grlRd9iua08Q0o=",
+    "Version": "$LATEST",
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "ffb52f6d-627c-44c5-9552-e855db829176",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:ap-southeast-2::runtime:2fada9df902022a65c4ba098836cd6754ac2c6d6407669cd728227413346057b"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/project_summaries"
+    }
+}

@@ -1,0 +1,43 @@
+{
+    "FunctionName": "generate-intake-upload-url",
+    "FunctionArn": "arn:aws:lambda:ap-southeast-2:050295694231:function:generate-intake-upload-url",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::050295694231:role/service-role/create-project-role-8frxvwbl",
+    "Handler": "index.handler",
+    "CodeSize": 1596,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2025-12-11T22:26:13.000+0000",
+    "CodeSha256": "bXOMOssnOK5suaF9gWvLbxxE50ZV/7pQuXAql9rYviA=",
+    "Version": "$LATEST",
+    "Environment": {
+        "Variables": {
+            "PROJECT_FILES_BUCKET": "app-planease-files"
+        }
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "117aa139-da14-4e1f-becd-8a478ee9e2cf",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:ap-southeast-2::runtime:2fada9df902022a65c4ba098836cd6754ac2c6d6407669cd728227413346057b"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/generate-intake-upload-url"
+    }
+}

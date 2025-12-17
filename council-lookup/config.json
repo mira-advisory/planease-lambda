@@ -1,0 +1,49 @@
+{
+    "FunctionName": "council-lookup",
+    "FunctionArn": "arn:aws:lambda:ap-southeast-2:050295694231:function:council-lookup",
+    "Runtime": "python3.11",
+    "Role": "arn:aws:iam::050295694231:role/service-role/council-lookup-role-8t5dathe",
+    "Handler": "lambda_function.lambda_handler",
+    "CodeSize": 11536,
+    "Description": "",
+    "Timeout": 20,
+    "MemorySize": 128,
+    "LastModified": "2025-12-08T02:58:35.000+0000",
+    "CodeSha256": "4hrTEV6S8PJCIyd9B9LKFEAas54oOnImgmyw46RO76E=",
+    "Version": "$LATEST",
+    "Environment": {
+        "Variables": {
+            "INTAKE_TABLE": "project_intake_sessions"
+        }
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "be92d737-2744-479f-a28b-2c07b4d53358",
+    "Layers": [
+        {
+            "Arn": "arn:aws:lambda:ap-southeast-2:050295694231:layer:council-lookup-requests:1",
+            "CodeSize": 937029
+        }
+    ],
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:ap-southeast-2::runtime:621ac689144ea9bc996443b608b02d97cdd92d2c95af1da8c74a08767be04952"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/council-lookup"
+    }
+}

@@ -1,0 +1,43 @@
+{
+    "FunctionName": "company-search-or-create",
+    "FunctionArn": "arn:aws:lambda:ap-southeast-2:050295694231:function:company-search-or-create",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::050295694231:role/service-role/company-search-or-create-role-dmh43twh",
+    "Handler": "index.handler",
+    "CodeSize": 1162,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2025-12-01T03:41:02.000+0000",
+    "CodeSha256": "aSN/zHx6jdZpb6Mnba2u8+1030m8+o5eylDS+4NplHM=",
+    "Version": "$LATEST",
+    "Environment": {
+        "Variables": {
+            "LOG_LEVEL": "debug"
+        }
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "06098b49-193c-4980-bb55-27b0102dbbe4",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:ap-southeast-2::runtime:9789c897924b8267853973afab7f065eaf98a441d27aa14bb62b2560df1ea5a0"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/company-search-or-create"
+    }
+}

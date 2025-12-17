@@ -1,0 +1,38 @@
+{
+    "FunctionName": "delete-user",
+    "FunctionArn": "arn:aws:lambda:ap-southeast-2:050295694231:function:delete-user",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::050295694231:role/service-role/delete-user-role-39rsqic5",
+    "Handler": "index.handler",
+    "CodeSize": 782,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2025-12-04T03:46:55.000+0000",
+    "CodeSha256": "1TwBUsretbTMZjeN30PZUTCHIJVSCjzM0IrsFqm9x4M=",
+    "Version": "$LATEST",
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "cb3c9aab-898f-4798-a388-f12e9cbd64ec",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:ap-southeast-2::runtime:9789c897924b8267853973afab7f065eaf98a441d27aa14bb62b2560df1ea5a0"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/delete-user"
+    }
+}

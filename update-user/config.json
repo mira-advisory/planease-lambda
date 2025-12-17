@@ -1,0 +1,43 @@
+{
+    "FunctionName": "update-user",
+    "FunctionArn": "arn:aws:lambda:ap-southeast-2:050295694231:function:update-user",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::050295694231:role/service-role/update-user-role-rdsfdkwb",
+    "Handler": "index.handler",
+    "CodeSize": 1178,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2025-12-04T02:49:04.000+0000",
+    "CodeSha256": "W+Sb6M5o43NOF7rto9MC6NhqDgkXQr0yXoWvVcj1iI4=",
+    "Version": "$LATEST",
+    "Environment": {
+        "Variables": {
+            "USER_PROFILES_TABLE": "user_profiles"
+        }
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "1a5270dc-c88c-4824-a9cf-213144f2ce8b",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:ap-southeast-2::runtime:9789c897924b8267853973afab7f065eaf98a441d27aa14bb62b2560df1ea5a0"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/update-user"
+    }
+}

@@ -1,0 +1,50 @@
+{
+    "FunctionName": "projects-api",
+    "FunctionArn": "arn:aws:lambda:ap-southeast-2:050295694231:function:projects-api",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::050295694231:role/service-role/projects-api-role-59wa13y0",
+    "Handler": "index.handler",
+    "CodeSize": 3065,
+    "Description": "",
+    "Timeout": 6,
+    "MemorySize": 512,
+    "LastModified": "2025-12-15T05:05:10.000+0000",
+    "CodeSha256": "DUwBPmtW3IzkNun1KX/ZJX5zRdNmsXogH5ur5uWKsK4=",
+    "Version": "$LATEST",
+    "Environment": {
+        "Variables": {
+            "PROJECTS_TABLE": "projects",
+            "CONDITIONS_TABLE": "conditions",
+            "DOCUMENTS_TABLE": "documents",
+            "COMMENTS_TABLE": "comments",
+            "PROJECT_SUMMARIES_TABLE": "project_summaries",
+            "FILES_BUCKET": "app-planease-files",
+            "PROJECT_MEMBERS": "project_members",
+            "REGION": "ap-southeast-2"
+        }
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "7837040c-509b-4423-8270-855877e64fc8",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:ap-southeast-2::runtime:2fada9df902022a65c4ba098836cd6754ac2c6d6407669cd728227413346057b"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/projects-api"
+    }
+}

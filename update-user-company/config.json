@@ -1,0 +1,38 @@
+{
+    "FunctionName": "update-user-company",
+    "FunctionArn": "arn:aws:lambda:ap-southeast-2:050295694231:function:update-user-company",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::050295694231:role/service-role/update-user-company-role-5zygse0i",
+    "Handler": "index.handler",
+    "CodeSize": 1044,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2025-12-01T01:46:58.000+0000",
+    "CodeSha256": "FFSseRG7IgdcKx3KGSXHutSJeRkM+Mhr2VhT3CjItu4=",
+    "Version": "$LATEST",
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "73d1ac3e-4574-4c78-967d-0fb132896e9b",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:ap-southeast-2::runtime:9789c897924b8267853973afab7f065eaf98a441d27aa14bb62b2560df1ea5a0"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/update-user-company"
+    }
+}

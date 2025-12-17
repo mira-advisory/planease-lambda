@@ -1,0 +1,38 @@
+{
+    "FunctionName": "list-users",
+    "FunctionArn": "arn:aws:lambda:ap-southeast-2:050295694231:function:list-users",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::050295694231:role/service-role/list-users-role-tk9g6zac",
+    "Handler": "index.handler",
+    "CodeSize": 1002,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2025-12-03T22:52:59.000+0000",
+    "CodeSha256": "r82q+aRc5hiz62bIzRVENJmTiCoo77/924x58cp2Kf8=",
+    "Version": "$LATEST",
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "a7ab46f7-658e-4af2-aea1-afc1a4906c13",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:ap-southeast-2::runtime:9789c897924b8267853973afab7f065eaf98a441d27aa14bb62b2560df1ea5a0"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/list-users"
+    }
+}

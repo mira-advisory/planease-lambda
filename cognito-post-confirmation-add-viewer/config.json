@@ -1,0 +1,38 @@
+{
+    "FunctionName": "cognito-post-confirmation-add-viewer",
+    "FunctionArn": "arn:aws:lambda:ap-southeast-2:050295694231:function:cognito-post-confirmation-add-viewer",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::050295694231:role/service-role/cognito-post-confirmation-add-viewer-role-2rbj6izw",
+    "Handler": "index.handler",
+    "CodeSize": 947,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2025-11-30T22:07:10.000+0000",
+    "CodeSha256": "oJLahBZH+V8nVkG+LybV/ZGXC4iRPr9dsKj6D/7zY2c=",
+    "Version": "$LATEST",
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "428cc1fa-dcb3-46a7-a023-34bf35f33c4b",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:ap-southeast-2::runtime:9789c897924b8267853973afab7f065eaf98a441d27aa14bb62b2560df1ea5a0"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/cognito-post-confirmation-add-viewer"
+    }
+}

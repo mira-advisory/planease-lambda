@@ -1,0 +1,38 @@
+{
+    "FunctionName": "update-user-profile",
+    "FunctionArn": "arn:aws:lambda:ap-southeast-2:050295694231:function:update-user-profile",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::050295694231:role/service-role/update-user-profile-role-7wtr9dgr",
+    "Handler": "index.handler",
+    "CodeSize": 1399,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2025-11-30T23:45:52.000+0000",
+    "CodeSha256": "1f5sbcrTb3z4A9c9zUa9EuyNKsAPsxACpX0OPOHqAHU=",
+    "Version": "$LATEST",
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "5e5ebc4d-de79-4777-916d-edcd33e40055",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:ap-southeast-2::runtime:9789c897924b8267853973afab7f065eaf98a441d27aa14bb62b2560df1ea5a0"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/update-user-profile"
+    }
+}
