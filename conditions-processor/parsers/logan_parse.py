@@ -33,12 +33,6 @@ def _next_meaningful(lines: List[str], start: int) -> str:
 
 
 def _find_value_after_label(lines: List[str], label_re: re.Pattern, scan_limit: int = 80) -> str:
-    """
-    Handle both:
-      "APPLICANT: A MALHOTRA ..."
-    and
-      "APPLICANT:" (next token is value) OR "APPLICANT:" + value on same line.
-    """
     for i, raw in enumerate(lines[:scan_limit]):
         line = _clean(raw)
         if not line:
@@ -48,19 +42,16 @@ def _find_value_after_label(lines: List[str], label_re: re.Pattern, scan_limit: 
         if not m:
             continue
 
-        # If label_re captures a value group, return it.
         if m.lastindex and m.lastindex >= 1:
             val = _clean(m.group(1))
             if val:
                 return val
 
-        # Otherwise try after ':' on same line
         if ":" in line:
             after = _clean(line.split(":", 1)[1])
             if after:
                 return after
 
-        # Otherwise next meaningful line
         nxt = _next_meaningful(lines, i + 1)
         return _clean(nxt)
 
@@ -71,30 +62,20 @@ def _find_value_after_label(lines: List[str], label_re: re.Pattern, scan_limit: 
 # Regex
 # -----------------------------
 
-# Section header: "2. PROPERTY"
 SECTION_LINE_RE = re.compile(r"^(\d+)\.\s+([A-Z][A-Z\s&/\-]+)\s*$")
-
-# Common broken extraction forms:
-# "2." on one line and "PROPERTY" next line
 SECTION_NUM_ONLY_RE = re.compile(r"^(\d+)\.\s*$")
 UPPER_TITLE_RE = re.compile(r"^[A-Z][A-Z\s&/\-]{2,}$")
 
-# Condition like: "2.1. text..."
 COND_INLINE_RE = re.compile(r"^(\d+(?:\.\d+)+)\.\s+(.*)$")
-
-# Condition number only line: "2.1."
 COND_NUM_ONLY_RE = re.compile(r"^(\d+(?:\.\d+)+)\.\s*$")
 
-# Notes that must NOT become titles
 NOTE_START_RE = re.compile(
     r"^(This condition is imposed under|Further Advice:|Advice Note:|Note:)\b",
     re.I
 )
 
-# Plans table header
 PLANS_HEADER_RE = re.compile(r"\bTitle\b.*\bPlan\b.*\bNumber\b", re.I)
 
-# Stop markers (we stop parsing conditions when we hit “FURTHER ADVICE…” section at end)
 FURTHER_ADVICE_RE = re.compile(r"^FURTHER ADVICE\b", re.I)
 FURTHER_ADVICE_TO_APPLICANT_RE = re.compile(r"^FURTHER ADVICE TO THE APPLICANT\b", re.I)
 
@@ -104,12 +85,6 @@ FURTHER_ADVICE_TO_APPLICANT_RE = re.compile(r"^FURTHER ADVICE TO THE APPLICANT\b
 # -----------------------------
 
 def _normalise_lines(lines: List[str]) -> List[str]:
-    """
-    Fix PyMuPDF splitting:
-      "2." + "PROPERTY" -> "2. PROPERTY"
-    Also split inline section headers embedded in other lines:
-      "... Titles Office. 2. PROPERTY Display Street Number"
-    """
     out: List[str] = []
     i = 0
 
@@ -121,7 +96,6 @@ def _normalise_lines(lines: List[str]) -> List[str]:
             i += 1
             continue
 
-        # Combine "2." + "PROPERTY"
         mnum = SECTION_NUM_ONLY_RE.match(l)
         if mnum:
             nxt = _next_meaningful(lines, i + 1)
@@ -130,7 +104,6 @@ def _normalise_lines(lines: List[str]) -> List[str]:
                 i += 2
                 continue
 
-        # Split inline section occurrences inside other text
         m = inline_section.match(l)
         if m and SECTION_LINE_RE.match(_clean(m.group(2))):
             a = _clean(m.group(1))
@@ -172,15 +145,8 @@ def _extract_lines_from_pdf_bytes(pdf_bytes: bytes) -> List[str]:
 # -----------------------------
 
 def _extract_logan_application_details(lines: List[str]) -> Tuple[Dict[str, str], Dict[str, str]]:
-    """
-    Returns:
-      (applicationDetails, extractedCoverHeadings)
-
-    extractedCoverHeadings is a debug-friendly dict of what we actually found.
-    """
     scan_limit = 120
 
-    # Cover labels
     applicant = _find_value_after_label(
         lines, re.compile(r"^APPLICANT\s*:?\s*(.*)$", re.I), scan_limit
     )
@@ -208,10 +174,7 @@ def _extract_logan_application_details(lines: List[str]) -> Tuple[Dict[str, str]
         lines, re.compile(r"^Real\s+Property\s+Description\s*:?\s*(.*)$", re.I), scan_limit
     )
 
-    # TYPE & DESCRIPTION regex returns group(2) when present; _find_value_after_label returns group(1) by default.
-    # So if it looks like it returned the label itself, try to fix.
     if type_desc.lower().startswith("type"):
-        # fallback: find line containing "TYPE & DESCRIPTION" and take rest of line after ':'
         for ln in lines[:scan_limit]:
             if re.search(r"TYPE\s*&\s*DESCRIPTION", ln, re.I):
                 if ":" in ln:
@@ -229,7 +192,6 @@ def _extract_logan_application_details(lines: List[str]) -> Tuple[Dict[str, str]
         "realPropertyDescription": real_prop,
     }
 
-    # Map into your “working” applicationDetails shape
     application_details = {
         "addressOfSite": street_address,
         "realPropertyDescriptionOfSite": real_prop,
@@ -238,7 +200,6 @@ def _extract_logan_application_details(lines: List[str]) -> Tuple[Dict[str, str]
         "permitReferenceNumbers": document_number or "",
         "packageStatus": "",
         "packageGenerated": "",
-        # (optional extras you may want later)
         "applicant": applicant,
         "officerName": officer_name,
         "contactNumber": contact_number,
@@ -382,6 +343,31 @@ def _map_plans_to_working_documents(plans: List[Dict[str, Any]]) -> List[Dict[st
 
 
 # -----------------------------
+# Canonical parser-doc mapping
+# -----------------------------
+
+def _to_canonical_parser_doc(row: Dict[str, Any]) -> Dict[str, Any]:
+    title = _clean(row.get("title", ""))
+    number = _clean(row.get("number", ""))
+    plan_date = _clean(row.get("planDate", ""))
+
+    external_id = number or f"{title}|{plan_date}"
+
+    return {
+        "source": "parser",
+        "externalId": external_id or None,
+        "title": title,
+        "category": "Documents Referenced in Conditions",
+        "docDate": plan_date or None,
+        "fileExtension": "",
+        "fileSize": "",
+        "downloadUrl": None,
+        "s3Key": None,
+        "raw": row,
+    }
+
+
+# -----------------------------
 # Conditions parsing
 # -----------------------------
 
@@ -505,7 +491,6 @@ def _parse_conditions(lines: List[str]) -> List[Dict[str, Any]]:
 
         i += 1
 
-    # Drop empty UNSORTED if we later found real sections
     if sections and sections[0]["title"] == "UNSORTED":
         has_real = any(s["title"] != "UNSORTED" for s in sections)
         if has_real and not sections[0]["conditions"]:
@@ -542,7 +527,10 @@ def parse_logan_conditions_pdf(file_bytes: bytes) -> Dict[str, Any]:
     application_details, extracted_cover = _extract_logan_application_details(lines)
 
     plans_raw = _extract_plans_table_best_effort(file_bytes, search_pages=6)
-    documents = _map_plans_to_working_documents(plans_raw)
+    legacy_docs = _map_plans_to_working_documents(plans_raw)
+
+    # ✅ Canonical reference docs
+    reference_documents = [_to_canonical_parser_doc(d) for d in legacy_docs if d and _clean(d.get("title", ""))]
 
     sections = _parse_conditions(lines)
 
@@ -550,14 +538,24 @@ def parse_logan_conditions_pdf(file_bytes: bytes) -> Dict[str, Any]:
         "council": "LOGAN",
         "applicationDetails": application_details,
         "projectTeam": [],
-        "documents": documents,
+
+        # Keep legacy name
+        "documents": legacy_docs,
+
+        # ✅ New canonical key
+        "referenceDocuments": reference_documents,
+
+        # ✅ Alias for old expectations
+        "referencedDocuments": reference_documents,
+
         "conditions": {"sections": sections},
         "headingElements": {
             "extractedCoverHeadings": extracted_cover,
             "detectedConditionSectionHeadings": _collect_section_headings(sections),
         },
         "summary": {
-            "numberOfPlans": len(documents),
+            "numberOfPlans": len(legacy_docs),
+            "numberOfReferenceDocuments": len(reference_documents),
             "numberOfConditions": _count_conditions(sections),
         },
     }
