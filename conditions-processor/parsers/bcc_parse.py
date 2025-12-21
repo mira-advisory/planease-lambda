@@ -154,7 +154,6 @@ def _parse_permit_info_from_approval_conditions_header(soup: BeautifulSoup) -> D
         elif ll.startswith("stage"):
             stage = "" if value_clean in ("\xa0", "&nbsp;") else value_clean
         elif ll.startswith("activity"):
-            # prefer real lines (often stacked)
             activities = value_lines if len(value_lines) > 1 else (
                 [p.strip() for p in value_clean.split(",") if p.strip()] or ([value_clean] if value_clean else [])
             )
@@ -167,7 +166,7 @@ def _parse_permit_info_from_approval_conditions_header(soup: BeautifulSoup) -> D
 
 
 # ------------------------
-# Documents parsing
+# Documents parsing (legacy rows)
 # ------------------------
 
 def _extract_revision_and_prepared_by(number_str: str) -> Tuple[str, str]:
@@ -230,31 +229,50 @@ def _parse_drawings_and_documents(soup: BeautifulSoup) -> List[Dict[str, str]]:
 
 
 # ------------------------
+# Canonical document mapping (parser outputs)
+# ------------------------
+
+def _to_canonical_parser_doc(row: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Canonical doc object to match council_lookup docs + finalise-intake write shape.
+    """
+    title = _clean(row.get("title", ""))
+    number = _clean(row.get("number", ""))  # best unique identifier in parser outputs
+    plan_date = _clean(row.get("planDate", ""))
+
+    # Use number if present; otherwise fallback to title+date
+    external_id = number or f"{title}|{plan_date}"
+
+    return {
+        "source": "parser",
+        "externalId": external_id or None,
+        "title": title,
+        "category": "Documents Referenced in Conditions",
+        "docDate": plan_date or None,
+        "fileExtension": "",      # unknown from table
+        "fileSize": "",           # unknown from table
+        "downloadUrl": None,      # parser docs don't have URLs
+        "s3Key": None,            # parser docs are not stored in S3
+        "raw": row,
+    }
+
+
+# ------------------------
 # Condition parsing
 # ------------------------
 
 def _extract_inline_timing(text: str) -> Tuple[str, str]:
-    """
-    Extracts inline 'Timing: ...' from the end of a block.
-    Returns (clean_text_without_inline_timing, inline_timing or "")
-    """
     if not text:
         return text, ""
-
     m = re.search(r"\bTiming:\s*(.+)$", text, flags=re.I | re.S)
     if not m:
         return text, ""
-
     inline_timing = _clean(m.group(1))
     clean_text = _clean(text[: m.start()])
     return clean_text, inline_timing
 
 
 def _extract_proof_of_fulfilment(text: str) -> Tuple[str, Optional[Dict[str, Any]]]:
-    """
-    Extract 'PROOF OF FULFILMENT ...' block from description into material.
-    Also extracts Timing: inside proof block into material.timing.
-    """
     if not text:
         return text, None
 
@@ -283,11 +301,6 @@ def _table_looks_like_timing_header(table) -> bool:
 
 
 def _extract_desc_excluding_header_bold(desc_cell) -> str:
-    """
-    In BCC HTML, the first <td> has:
-      <b>8(a) Project Arborist</b>  + body text in other elements.
-    We remove ONLY the first <b> inside this cell (the header), then read remaining text.
-    """
     cell_copy = BeautifulSoup(str(desc_cell), "html.parser")
     first_b = cell_copy.find("b")
     if first_b:
@@ -296,22 +309,14 @@ def _extract_desc_excluding_header_bold(desc_cell) -> str:
 
 
 def _parse_conditions(soup: BeautifulSoup) -> Tuple[List[Dict[str, Any]], int]:
-    """
-    Output requirement:
-      - Parent conditions: "8"
-      - Subconditions ONLY: "8(a)", "8(b)", ... (attached under parent)
-      - NO extra levels like "8(a)(a)"
-      - DO NOT split (i)(ii)(iii) into separate numbered conditions
-    """
     root = _find_marker(soup, r"\bAPPROVAL CONDITIONS\b") or soup
 
     sections: List[Dict[str, Any]] = []
     current_section_title = "General"
     current_conditions: List[Dict[str, Any]] = []
 
-    # base number -> parent dict
     condition_index: Dict[str, Dict[str, Any]] = {}
-    total_conditions = 0  # includes subconditions (8(a), 8(b), ...)
+    total_conditions = 0
 
     def flush():
         nonlocal current_conditions
@@ -324,9 +329,6 @@ def _parse_conditions(soup: BeautifulSoup) -> Tuple[List[Dict[str, Any]], int]:
         if not text:
             continue
 
-        # Match:
-        #   8) Title
-        #   8(a) Title   (often no extra trailing ')')
         cond_m = re.match(r"^(\d+)(\([a-z]\))?\s*\)?\s*(.+)$", text, flags=re.I)
         if cond_m:
             base_num = cond_m.group(1)
@@ -342,14 +344,10 @@ def _parse_conditions(soup: BeautifulSoup) -> Tuple[List[Dict[str, Any]], int]:
             if len(cells) < 2:
                 continue
 
-            # IMPORTANT: description should be the body, not the header
             raw_desc = _extract_desc_excluding_header_bold(cells[0])
             timing_col = _clean(cells[1].get_text(" ", strip=True))
 
-            # PROOF OF FULFILMENT -> material
             desc_wo_proof, material = _extract_proof_of_fulfilment(raw_desc)
-
-            # Inline Timing: ... inside description (when timing column isn't explicit)
             clean_desc, inline_timing = _extract_inline_timing(desc_wo_proof)
 
             timing = timing_col
@@ -370,14 +368,12 @@ def _parse_conditions(soup: BeautifulSoup) -> Tuple[List[Dict[str, Any]], int]:
                 "children": [],
             }
 
-            # Attach subconditions to their base parent
             if suffix:
                 parent = condition_index.get(base_num)
                 if parent:
                     condition["parentNumber"] = base_num
                     parent["children"].append(condition)
                 else:
-                    # If parent hasn't been seen yet, keep it as standalone (no data loss)
                     current_conditions.append(condition)
                 total_conditions += 1
             else:
@@ -387,7 +383,6 @@ def _parse_conditions(soup: BeautifulSoup) -> Tuple[List[Dict[str, Any]], int]:
 
             continue
 
-        # Dynamic category headings
         nxt_table = b.find_next("table")
         if _table_looks_like_timing_header(nxt_table):
             flush()
@@ -408,24 +403,39 @@ def parse_bcc_conditions_html(file_bytes: bytes) -> Dict[str, Any]:
     application_details = _parse_application_details(soup)
     project_team = _parse_project_team(soup)
     permit_info = _parse_permit_info_from_approval_conditions_header(soup)
-    documents = _parse_drawings_and_documents(soup)
+
+    # Legacy “plan rows”
+    legacy_docs = _parse_drawings_and_documents(soup)
+
+    # ✅ Canonical “parser docs” for downstream usage (finalise + UI)
+    reference_documents = [_to_canonical_parser_doc(d) for d in legacy_docs if d and _clean(d.get("title", ""))]
+
     condition_sections, total_conditions = _parse_conditions(soup)
 
     return {
         "council": "BCC",
         "summary": {
             "numberOfConditions": total_conditions,
-            "numberOfPlans": len(documents),
+            "numberOfPlans": len(legacy_docs),
+            "numberOfReferenceDocuments": len(reference_documents),
         },
         "permitInfo": permit_info,
         "applicationDetails": application_details,
         "projectTeam": project_team,
-        "documents": documents,
+
+        # Keep legacy name for compatibility
+        "documents": legacy_docs,
+
+        # ✅ New canonical key
+        "referenceDocuments": reference_documents,
+
+        # ✅ Alias to stop breaking any existing code that looks for this
+        "referencedDocuments": reference_documents,
+
         "conditions": {"sections": condition_sections},
     }
 
 
-# Backwards-compatible alias (if anything still calls approval)
 def parse_bcc_approval_html(file_bytes: bytes) -> Dict[str, Any]:
     return parse_bcc_conditions_html(file_bytes)
 
