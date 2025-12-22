@@ -232,15 +232,11 @@ def _parse_drawings_and_documents(soup: BeautifulSoup) -> List[Dict[str, str]]:
 # Canonical document mapping (parser outputs)
 # ------------------------
 
-def _to_canonical_parser_doc(row: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Canonical doc object to match council_lookup docs + finalise-intake write shape.
-    """
+def _to_canonical_parser_doc_bcc(row: Dict[str, Any]) -> Dict[str, Any]:
     title = _clean(row.get("title", ""))
-    number = _clean(row.get("number", ""))  # best unique identifier in parser outputs
+    number = _clean(row.get("number", ""))
     plan_date = _clean(row.get("planDate", ""))
 
-    # Use number if present; otherwise fallback to title+date
     external_id = number or f"{title}|{plan_date}"
 
     return {
@@ -249,12 +245,22 @@ def _to_canonical_parser_doc(row: Dict[str, Any]) -> Dict[str, Any]:
         "title": title,
         "category": "Documents Referenced in Conditions",
         "docDate": plan_date or None,
-        "fileExtension": "",      # unknown from table
-        "fileSize": "",           # unknown from table
-        "downloadUrl": None,      # parser docs don't have URLs
-        "s3Key": None,            # parser docs are not stored in S3
+        "fileExtension": "",
+        "fileSize": "",
+        "downloadUrl": None,
+        "s3Key": None,
         "raw": row,
     }
+
+docs_legacy = _parse_drawings_and_documents(soup)
+reference_documents = [_to_canonical_parser_doc_bcc(d) for d in docs_legacy if _clean(d.get("title",""))]
+
+return {
+  ...
+  "referenceDocuments": reference_documents,
+  "legacyDocuments": docs_legacy,
+  ...
+}
 
 
 # ------------------------
