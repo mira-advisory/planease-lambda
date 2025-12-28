@@ -116,6 +116,29 @@ function membershipId(projectId, userId) {
   return `${projectId}#${userId}`;
 }
 
+/**
+ * IMPORTANT:
+ * project_members PK is membership_id, but older rows may have a different membership_id format.
+ * We use the GSI project_id_user_id_index to find the actual row for a given (project_id, user_id).
+ */
+async function findMembershipByProjectAndUser(projectId, userId) {
+  const res = await ddb.send(
+    new QueryCommand({
+      TableName: PROJECT_MEMBERS_TABLE,
+      IndexName: "project_id_user_id_index",
+      KeyConditionExpression: "project_id = :pid AND user_id = :uid",
+      ExpressionAttributeValues: {
+        ":pid": { S: projectId },
+        ":uid": { S: userId },
+      },
+      Limit: 1,
+    })
+  );
+
+  const item = (res.Items || [])[0];
+  return item ? unmarshall(item) : null;
+}
+
 async function queryByProject({
   tableName,
   indexName,
@@ -221,8 +244,6 @@ export const handler = async (event) => {
 
     // ------------------------------------
     // GET /projects/{project_id}/conditions
-    // conditions index: project_id_index
-    // HASH: project_id, RANGE: condition_number
     // ------------------------------------
     if (method === "GET" && path.endsWith("/conditions")) {
       const projectId = getProjectIdFromEvent(event);
@@ -239,7 +260,7 @@ export const handler = async (event) => {
         projectId,
         limit,
         nextKeyStr: nextKey,
-        scanIndexForward: true, // condition_number ascending
+        scanIndexForward: true,
       });
 
       return jsonResponse(200, result);
@@ -247,8 +268,6 @@ export const handler = async (event) => {
 
     // -----------------------------------
     // GET /projects/{project_id}/documents
-    // documents index: gsi_project_created
-    // HASH: project_id, RANGE: created_at
     // -----------------------------------
     if (method === "GET" && path.endsWith("/documents")) {
       const projectId = getProjectIdFromEvent(event);
@@ -265,7 +284,7 @@ export const handler = async (event) => {
         projectId,
         limit,
         nextKeyStr: nextKey,
-        scanIndexForward: false, // newest first
+        scanIndexForward: false,
       });
 
       return jsonResponse(200, result);
@@ -273,8 +292,6 @@ export const handler = async (event) => {
 
     // -----------------------------------
     // GET /projects/{project_id}/members
-    // project_members index: project_id_user_id_index
-    // HASH: project_id, RANGE: user_id
     // -----------------------------------
     if (method === "GET" && path.endsWith("/members")) {
       const projectId = getProjectIdFromEvent(event);
@@ -291,7 +308,7 @@ export const handler = async (event) => {
         projectId,
         limit,
         nextKeyStr: nextKey,
-        scanIndexForward: true, // user_id ascending
+        scanIndexForward: true,
       });
 
       return jsonResponse(200, result);
@@ -352,6 +369,7 @@ export const handler = async (event) => {
     // -----------------------------------------
     // PATCH /projects/{project_id}/members/{user_id}
     // body: { project_role }
+    // FIX: lookup membership_id via GSI so legacy rows work
     // -----------------------------------------
     if (method === "PATCH" && /\/members\/[A-Za-z0-9\-_.~%]+$/.test(path)) {
       const projectId = getProjectIdFromEvent(event);
@@ -369,35 +387,32 @@ export const handler = async (event) => {
         });
       }
 
-      const now = new Date().toISOString();
-      const membership_id = membershipId(projectId, userId);
-
-      try {
-        const res = await ddb.send(
-          new UpdateItemCommand({
-            TableName: PROJECT_MEMBERS_TABLE,
-            Key: { membership_id: { S: membership_id } },
-            UpdateExpression: "SET project_role = :r, updated_at = :t",
-            ExpressionAttributeValues: {
-              ":r": { S: projectRole },
-              ":t": { S: now },
-            },
-            ConditionExpression: "attribute_exists(membership_id)",
-            ReturnValues: "ALL_NEW",
-          })
-        );
-
-        return jsonResponse(200, unmarshall(res.Attributes || {}));
-      } catch (e) {
-        if (e?.name === "ConditionalCheckFailedException") {
-          return jsonResponse(404, { error: "NOT_FOUND" });
-        }
-        throw e;
+      const existing = await findMembershipByProjectAndUser(projectId, userId);
+      if (!existing?.membership_id) {
+        return jsonResponse(404, { error: "NOT_FOUND" });
       }
+
+      const now = new Date().toISOString();
+
+      const res = await ddb.send(
+        new UpdateItemCommand({
+          TableName: PROJECT_MEMBERS_TABLE,
+          Key: { membership_id: { S: String(existing.membership_id) } },
+          UpdateExpression: "SET project_role = :r, updated_at = :t",
+          ExpressionAttributeValues: {
+            ":r": { S: projectRole },
+            ":t": { S: now },
+          },
+          ReturnValues: "ALL_NEW",
+        })
+      );
+
+      return jsonResponse(200, unmarshall(res.Attributes || {}));
     }
 
     // -----------------------------------------
     // DELETE /projects/{project_id}/members/{user_id}
+    // FIX: lookup membership_id via GSI so legacy rows work
     // -----------------------------------------
     if (method === "DELETE" && /\/members\/[A-Za-z0-9\-_.~%]+$/.test(path)) {
       const projectId = getProjectIdFromEvent(event);
@@ -407,22 +422,17 @@ export const handler = async (event) => {
         return jsonResponse(400, { error: "MISSING_PROJECT_ID" });
       if (!userId) return jsonResponse(400, { error: "MISSING_USER_ID" });
 
-      const membership_id = membershipId(projectId, userId);
-
-      try {
-        await ddb.send(
-          new DeleteItemCommand({
-            TableName: PROJECT_MEMBERS_TABLE,
-            Key: { membership_id: { S: membership_id } },
-            ConditionExpression: "attribute_exists(membership_id)",
-          })
-        );
-      } catch (e) {
-        if (e?.name === "ConditionalCheckFailedException") {
-          return jsonResponse(404, { error: "NOT_FOUND" });
-        }
-        throw e;
+      const existing = await findMembershipByProjectAndUser(projectId, userId);
+      if (!existing?.membership_id) {
+        return jsonResponse(404, { error: "NOT_FOUND" });
       }
+
+      await ddb.send(
+        new DeleteItemCommand({
+          TableName: PROJECT_MEMBERS_TABLE,
+          Key: { membership_id: { S: String(existing.membership_id) } },
+        })
+      );
 
       return jsonResponse(200, { ok: true });
     }
@@ -437,7 +447,10 @@ export const handler = async (event) => {
 
       const project = await getProject(projectId);
       if (!project)
-        return jsonResponse(404, { error: "NOT_FOUND", message: "Project not found" });
+        return jsonResponse(404, {
+          error: "NOT_FOUND",
+          message: "Project not found",
+        });
 
       const { filename, content_type } = body || {};
       if (!filename || !content_type) {
@@ -466,7 +479,6 @@ export const handler = async (event) => {
 
     // -----------------------------------------
     // POST /projects/{project_id}/documents/registry
-    // Writes a documents row referencing an uploaded S3 file
     // -----------------------------------------
     if (method === "POST" && path.endsWith("/documents/registry")) {
       const projectId = getProjectIdFromEvent(event);
@@ -475,7 +487,10 @@ export const handler = async (event) => {
 
       const project = await getProject(projectId);
       if (!project)
-        return jsonResponse(404, { error: "NOT_FOUND", message: "Project not found" });
+        return jsonResponse(404, {
+          error: "NOT_FOUND",
+          message: "Project not found",
+        });
 
       const {
         s3_key,
