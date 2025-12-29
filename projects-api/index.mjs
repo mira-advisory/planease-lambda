@@ -31,6 +31,10 @@ const {
   CONDITIONS_PROJECT_INDEX = "project_id_index",
   DOCUMENTS_PROJECT_CREATED_INDEX = "gsi_project_created",
   PROJECT_MEMBERS_INDEX = "project_id_user_id_index",
+
+  // Comments indexes (match DynamoDB GSIs you showed)
+  COMMENTS_CONDITION_CREATED_INDEX = "GSI1-conditionId-createdAt",
+  COMMENTS_PROJECT_CREATED_INDEX = "GSI2-projectId-createdAt",
 } = process.env;
 
 const jsonResponse = (statusCode, body) => ({
@@ -112,6 +116,24 @@ function getUserIdFromEvent(event) {
   return null;
 }
 
+function getConditionIdFromEvent(event) {
+  const pp = event?.pathParameters || {};
+  const direct =
+    pp.condition_id ||
+    pp.conditionId ||
+    pp["condition_id"] ||
+    pp["conditionId"];
+  if (direct) return direct;
+
+  const path = getHttpPath(event) || "";
+  const parts = path.split("/").filter(Boolean);
+  // /projects/{project_id}/conditions/{condition_id}/...
+  const idx = parts.findIndex((p) => p === "conditions");
+  if (idx >= 0 && parts[idx + 1]) return parts[idx + 1];
+
+  return null;
+}
+
 function membershipId(projectId, userId) {
   return `${projectId}#${userId}`;
 }
@@ -188,12 +210,7 @@ async function queryByProject({
  * Fallback when index/key is wrong: Scan + FilterExpression on project_id.
  * Note: Scan does not guarantee ordering.
  */
-async function scanByProject({
-  tableName,
-  projectId,
-  limit,
-  nextKeyStr,
-}) {
+async function scanByProject({ tableName, projectId, limit, nextKeyStr }) {
   const ExclusiveStartKey = decodeNextKey(nextKeyStr);
 
   const res = await ddb.send(
@@ -224,6 +241,75 @@ async function getProject(projectId) {
     })
   );
   return res.Item ? unmarshall(res.Item) : null;
+}
+
+/**
+ * Comments:
+ * Table PK: (commentId HASH, createdAt RANGE)
+ * We query via GSIs:
+ * - GSI1-conditionId-createdAt  (conditionId HASH, createdAt RANGE)
+ * - GSI2-projectId-createdAt    (projectId HASH, createdAt RANGE)
+ */
+async function queryCommentsByCondition({
+  projectId,
+  conditionId,
+  limit,
+  nextKeyStr,
+  newestFirst = true,
+}) {
+  const ExclusiveStartKey = decodeNextKey(nextKeyStr);
+
+  const res = await ddb.send(
+    new QueryCommand({
+      TableName: COMMENTS_TABLE,
+      IndexName: COMMENTS_CONDITION_CREATED_INDEX,
+      KeyConditionExpression: "conditionId = :cid",
+      ExpressionAttributeValues: {
+        ":cid": { S: conditionId },
+      },
+      Limit: limit,
+      ExclusiveStartKey: ExclusiveStartKey || undefined,
+      ScanIndexForward: newestFirst ? false : true,
+    })
+  );
+
+  // Extra safety: enforce project scope (because index is on conditionId only)
+  const items = (res.Items || [])
+    .map((it) => unmarshall(it))
+    .filter((it) => !projectId || it.projectId === projectId);
+
+  const nextKey = encodeNextKey(res.LastEvaluatedKey);
+
+  return { items, nextKey };
+}
+
+function buildUpdateExpressionFromBody(body, allowedFields) {
+  const sets = [];
+  const names = {};
+  const values = {};
+
+  for (const field of allowedFields) {
+    if (body[field] === undefined) continue;
+
+    const nameKey = `#${field}`;
+    const valueKey = `:${field}`;
+
+    names[nameKey] = field;
+
+    // allow null (explicitly clearing a field)
+    const v = body[field];
+    values[valueKey] =
+      v === null ? { NULL: true } : marshall({ v }).v; // marshall scalar safely
+    sets.push(`${nameKey} = ${valueKey}`);
+  }
+
+  if (sets.length === 0) return null;
+
+  return {
+    UpdateExpression: `SET ${sets.join(", ")}`,
+    ExpressionAttributeNames: names,
+    ExpressionAttributeValues: values,
+  };
 }
 
 export const handler = async (event) => {
@@ -278,7 +364,6 @@ export const handler = async (event) => {
 
     // ------------------------
     // GET /projects/{project_id}
-    // (fixes the 404 your project dashboard is hitting)
     // ------------------------
     if (method === "GET" && /^\/projects\/[^/]+$/.test(path)) {
       const projectId = getProjectIdFromEvent(event);
@@ -286,7 +371,10 @@ export const handler = async (event) => {
 
       const project = await getProject(projectId);
       if (!project) {
-        return jsonResponse(404, { error: "NOT_FOUND", message: "Project not found" });
+        return jsonResponse(404, {
+          error: "NOT_FOUND",
+          message: "Project not found",
+        });
       }
 
       return jsonResponse(200, project);
@@ -325,6 +413,93 @@ export const handler = async (event) => {
         }
         throw e;
       }
+    }
+
+    // -----------------------------------------------------------
+    // PATCH /projects/{project_id}/conditions/{condition_id}
+    // Snappy update endpoint (status/assignee/dates/priority etc.)
+    // -----------------------------------------------------------
+    if (
+      method === "PATCH" &&
+      /^\/projects\/[^/]+\/conditions\/[^/]+$/.test(path)
+    ) {
+      const projectId = getProjectIdFromEvent(event);
+      const conditionId = getConditionIdFromEvent(event);
+
+      if (!projectId) return jsonResponse(400, { error: "MISSING_PROJECT_ID" });
+      if (!conditionId)
+        return jsonResponse(400, { error: "MISSING_CONDITION_ID" });
+
+      // whitelist fields you want editable from the UI
+      const allowed = [
+        "status",
+        "priority",
+        "assigned_to",
+        "assigned_to_user_id",
+        "assigned_to_name",
+        "due_date",
+        "completed_date",
+        "title",
+        "description",
+      ];
+
+      const now = new Date().toISOString();
+
+      // always update updated_at if any allowed field is present
+      const patch = { ...body };
+      patch.updated_at = now;
+
+      const expr = buildUpdateExpressionFromBody(patch, [
+        ...allowed,
+        "updated_at",
+      ]);
+
+      if (!expr) {
+        return jsonResponse(400, {
+          error: "MISSING_FIELDS",
+          message: "No valid fields to update",
+        });
+      }
+
+      // NOTE: We assume conditions table PK is `condition_id` (common in this codebase).
+      // We also enforce the project_id match so you can't update a condition in another project.
+      let res;
+      try {
+        res = await ddb.send(
+          new UpdateItemCommand({
+            TableName: CONDITIONS_TABLE,
+            Key: { condition_id: { S: conditionId } },
+            ...expr,
+            ConditionExpression:
+              "attribute_exists(condition_id) AND project_id = :pid",
+            ExpressionAttributeValues: {
+              ...expr.ExpressionAttributeValues,
+              ":pid": { S: projectId },
+            },
+            ReturnValues: "ALL_NEW",
+          })
+        );
+      } catch (e) {
+        if (e?.name === "ConditionalCheckFailedException") {
+          return jsonResponse(404, {
+            error: "NOT_FOUND",
+            message: "Condition not found for this project",
+          });
+        }
+        // If your table PK is not condition_id, Dynamo will throw a schema error.
+        // We'll surface that clearly rather than hiding it.
+        if (isDynamoIndexOrKeyError(e)) {
+          return jsonResponse(500, {
+            error: "SCHEMA_MISMATCH",
+            message:
+              "Conditions table key schema does not match expected Key {condition_id}. Describe the conditions table keys and update this handler accordingly.",
+            detail: e?.message || String(e),
+          });
+        }
+        throw e;
+      }
+
+      return jsonResponse(200, unmarshall(res.Attributes || {}));
     }
 
     // -----------------------------------
@@ -450,8 +625,6 @@ export const handler = async (event) => {
 
     // -----------------------------------------
     // PATCH /projects/{project_id}/members/{user_id}
-    // body: { project_role }
-    // FIX: lookup membership_id via GSI so legacy rows work
     // -----------------------------------------
     if (method === "PATCH" && /\/members\/[A-Za-z0-9\-_.~%]+$/.test(path)) {
       const projectId = getProjectIdFromEvent(event);
@@ -469,7 +642,8 @@ export const handler = async (event) => {
       }
 
       const existing = await findMembershipByProjectAndUser(projectId, userId);
-      if (!existing?.membership_id) return jsonResponse(404, { error: "NOT_FOUND" });
+      if (!existing?.membership_id)
+        return jsonResponse(404, { error: "NOT_FOUND" });
 
       const now = new Date().toISOString();
 
@@ -491,7 +665,6 @@ export const handler = async (event) => {
 
     // -----------------------------------------
     // DELETE /projects/{project_id}/members/{user_id}
-    // FIX: lookup membership_id via GSI so legacy rows work
     // -----------------------------------------
     if (method === "DELETE" && /\/members\/[A-Za-z0-9\-_.~%]+$/.test(path)) {
       const projectId = getProjectIdFromEvent(event);
@@ -501,7 +674,8 @@ export const handler = async (event) => {
       if (!userId) return jsonResponse(400, { error: "MISSING_USER_ID" });
 
       const existing = await findMembershipByProjectAndUser(projectId, userId);
-      if (!existing?.membership_id) return jsonResponse(404, { error: "NOT_FOUND" });
+      if (!existing?.membership_id)
+        return jsonResponse(404, { error: "NOT_FOUND" });
 
       await ddb.send(
         new DeleteItemCommand({
@@ -511,6 +685,87 @@ export const handler = async (event) => {
       );
 
       return jsonResponse(200, { ok: true });
+    }
+
+    // ---------------------------------------------------------
+    // GET /projects/{project_id}/conditions/{condition_id}/comments
+    // ---------------------------------------------------------
+    if (
+      method === "GET" &&
+      /^\/projects\/[^/]+\/conditions\/[^/]+\/comments$/.test(path)
+    ) {
+      const projectId = getProjectIdFromEvent(event);
+      const conditionId = getConditionIdFromEvent(event);
+
+      if (!projectId) return jsonResponse(400, { error: "MISSING_PROJECT_ID" });
+      if (!conditionId)
+        return jsonResponse(400, { error: "MISSING_CONDITION_ID" });
+
+      const limit = Math.max(1, Math.min(500, Number(qs.limit || 100)));
+      const nextKey = qs.nextKey || null;
+
+      const result = await queryCommentsByCondition({
+        projectId,
+        conditionId,
+        limit,
+        nextKeyStr: nextKey,
+        newestFirst: true,
+      });
+
+      return jsonResponse(200, result);
+    }
+
+    // ----------------------------------------------------------
+    // POST /projects/{project_id}/conditions/{condition_id}/comments
+    // body: { content, comment_type?, metadata? }
+    // ----------------------------------------------------------
+    if (
+      method === "POST" &&
+      /^\/projects\/[^/]+\/conditions\/[^/]+\/comments$/.test(path)
+    ) {
+      const projectId = getProjectIdFromEvent(event);
+      const conditionId = getConditionIdFromEvent(event);
+
+      if (!projectId) return jsonResponse(400, { error: "MISSING_PROJECT_ID" });
+      if (!conditionId)
+        return jsonResponse(400, { error: "MISSING_CONDITION_ID" });
+
+      const content = String(body.content || body.message || "").trim();
+      if (!content) {
+        return jsonResponse(400, {
+          error: "MISSING_FIELDS",
+          message: "content is required",
+        });
+      }
+
+      const now = new Date().toISOString();
+      const commentId = crypto.randomUUID();
+
+      const item = {
+        commentId,
+        createdAt: now,
+        projectId,
+        conditionId,
+
+        // payload
+        content,
+        commentType: String(body.comment_type || body.commentType || "comment"),
+        metadata: body.metadata || null,
+
+        // author
+        authorUserId: user.userId,
+        authorEmail: user.email,
+        authorName: user.name,
+      };
+
+      await ddb.send(
+        new PutItemCommand({
+          TableName: COMMENTS_TABLE,
+          Item: marshall(item, { removeUndefinedValues: true }),
+        })
+      );
+
+      return jsonResponse(201, item);
     }
 
     // -----------------------------------------
